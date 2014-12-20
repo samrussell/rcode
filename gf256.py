@@ -3,6 +3,7 @@
 import math
 import pprint
 import numpy
+from random import randint
 
 def makegaloisfield(fieldsize, generator):
 
@@ -76,22 +77,95 @@ class GFnum:
   def __add__(self, other):
     if isinstance(other, GFnum):
       other = other.num
-    return self.num ^ other
+    return GFnum(self.num ^ other, self.gf)
   def __sub__(self, other):
     if isinstance(other, GFnum):
       other = other.num
-    return self.num ^ other
+    return GFnum(self.num ^ other, self.gf)
   def __mul__(self, other):
     if isinstance(other, GFnum):
       other = other.num
-    return self.gf.table[self.number][other]
+    return GFnum(self.gf.table[self.num][other], self.gf)
   def __div__(self, other):
     if isinstance(other, GFnum):
       other = other.num
     otherinverse = self.gf.inverses[other]
-    return self.gf.table[self.number][otherinverse]
+    return GFnum(self.gf.table[self.num][otherinverse], self.gf)
   def __repr__(self):
     return str(self.num)
+
+def make2dgf(a, gf):
+  return [[GFnum(ord(y) if isinstance(y, str) else int(y), gf) for y in x] for x in a]
+
+def eliminate(rows, gf):
+  # rows is a list of vectors in numpy.matrix
+  # start at the top
+  for i in range(len(rows)):
+    # print everything so we know what's happening
+    print "About to work with row %d" % i
+    print rows
+    # find the rows that have leading zeros
+    candidaterows = set([x for x, y in enumerate(rows)])
+    for index, row in enumerate(rows):
+      for x in range(i):
+        if int(row.item(x).num) != 0:
+          candidaterows.remove(index)
+          break
+    # find a row where there's something in column i
+    goodrows = [x for x in candidaterows if rows[x].item(i).num != 0]
+    if goodrows == None:
+      # this means we fail encoding, should throw a fit i guess
+      raise Exception("Couldn't decode coefficient %d" % i)
+    # start with the highest column and baleet from all the others
+    rownum = goodrows[0]
+    print "using row %d" % rownum
+    row = rownum
+    # divide first item so it's 1 (multiply by inverse)
+    value = rows[rownum].item(i)
+    inverse = gf.inverses[value.num]
+    print "inverse is %d" % inverse
+    rows[rownum] = rows[rownum] * inverse
+    # subtract this row from all other rows
+    for delnum in range(len(rows)):
+      if delnum != rownum:
+        # find the value of the item at that column
+        delvalue = rows[delnum].item(i)
+        # multiply to clear it out
+        eliminator = rows[rownum] * delvalue
+        rows[delnum] = rows[delnum] - eliminator
+
+  print rows
+
+def garyencode(message, numpieces, gf):
+  # divide message into pieces
+  length = len(message)
+  piecelength = length / numpieces
+  # this length/piece detection is broken, watchout!
+  if length % numpieces > 0:
+    # pad for now with ?
+    message = message + ''.join(['?' for x in range(piecelength-(length % numpieces))])
+    piecelength = piecelength + 1
+  pieces = [message[i*piecelength:i*piecelength+piecelength] for i in range(numpieces)]
+  print pieces
+
+def testencode():
+  # 80 character string
+  plaintext = "big string with lots of characters. i am telling a story about stuff and thingsa"
+  gf = GF256()
+  garyencode(plaintext, 10, gf)
+
+def testeliminate():
+  gf = GF256()
+  message = numpy.matrix(make2dgf([[1, 0, 0, 0, 'G', 'a', 'r', 'y'], [0, 1, 0, 0, ' ', 'c', 'o', 'd'], [0, 0, 1, 0, 'i', 'n', 'g', ' '], [0, 0, 0, 1, 'F', 'T', 'W', '!']], gf))
+  key1 = numpy.matrix([[GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf)]])
+  key2 = numpy.matrix([[GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf)]])
+  key3 = numpy.matrix([[GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf)]])
+  key4 = numpy.matrix([[GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf)]])
+  m1 = key1 * message
+  m2 = key2 * message
+  m3 = key3 * message
+  m4 = key4 * message
+  eliminate([m1, m2, m3, m4], gf)
 
 def main():
   # just generate stuff and print
