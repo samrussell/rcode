@@ -4,6 +4,7 @@ import math
 import pprint
 import numpy
 from random import randint
+import json
 
 def makegaloisfield(fieldsize, generator):
 
@@ -65,6 +66,13 @@ class GF256:
     self.generator = 0b100011011 # x^8 + x^4 + x^3 + x + 1 = 100011011
     self.fieldsize = 256
     gf = makegaloisfield(self.fieldsize, self.generator)
+    self.table = gf["table"]
+    self.inverses = gf["inverses"]
+
+  def __init__(self, data):
+    self.generator = 0b100011011 # x^8 + x^4 + x^3 + x + 1 = 100011011
+    self.fieldsize = 256
+    gf = json.loads(data)
     self.table = gf["table"]
     self.inverses = gf["inverses"]
 
@@ -133,52 +141,82 @@ def eliminate(rows, gf):
         # multiply to clear it out
         eliminator = rows[rownum] * delvalue
         rows[delnum] = rows[delnum] - eliminator
+    #print "decoding, rows:"
+    #print rows
 
   return rows
 
-def garyencode(message, numpieces, gf):
-  # divide message into pieces
-  length = len(message)
-  piecelength = length / numpieces
-  # this length/piece detection is broken, watchout!
-  if length % numpieces > 0:
-    # pad for now with ?
-    message = message + ''.join(['?' for x in range(piecelength-(length % numpieces))])
-    piecelength = piecelength + 1
-  pieces = [message[i*piecelength:i*piecelength+piecelength] for i in range(numpieces)]
-  # turn into matrix rows
-  rows = []
-  for i in range(numpieces):
-    row = [1 if x == i else 0 for x in range(10)] + [ord(x) for x in pieces[i]]
-    rows.append(row)
-  numpyrows = numpy.matrix(make2dgf(rows, gf))
-  print numpyrows
-  # generate keys
-  keys = []
-  for x in range(numpieces):
-    key = numpy.matrix([[GFnum(randint(2,254), gf) for x in range(numpieces)]])
-    keys.append(key)
-  print keys
-  messages = [k * numpyrows for k in keys]
-  print messages
-  # solve
-  rows = eliminate(messages, gf)
-  # need to decode
-  # test for identity (will code later)
-  # assume that it is solved and in correct order
-  answers = [x.tolist()[0][numpieces:] for x in rows]
-  print answers
-  output = ''.join([''.join([chr(b.num) for b in a]) for a in answers])
-  print output
+class Encoder:
+
+  def __init__(self, gf):
+    self.keys = None
+    self.numpyrows = None
+    self.numpieces = 0
+    self.gf = None
+    self.length = 0
+    self.piecelength = 0
+    self.gf = gf
+
+  def prime(self, message, numpieces):
+    self.numpieces = numpieces
+    # divide message into pieces
+    self.length = len(message)
+    piecelength = self.length / self.numpieces
+    # this length/piece detection is broken, watchout!
+    if self.length % self.numpieces > 0:
+      piecelength = piecelength + 1
+      extrachars = (piecelength * numpieces) - self.length
+      # pad for now with ?
+      message = message + ''.join(['?' for x in range(extrachars)])
+    pieces = [message[i*piecelength:i*piecelength+piecelength] for i in range(numpieces)]
+    # turn into matrix rows
+    rows = []
+    for i in range(numpieces):
+      row = [1 if x == i else 0 for x in range(numpieces)] + [ord(x) for x in pieces[i]]
+      #print len(row)
+      rows.append(row)
+    self.numpyrows = numpy.matrix(make2dgf(rows, self.gf))
+  
+  def generatepacket(self):
+    key = numpy.matrix([[GFnum(randint(2,254), self.gf) for x in range(self.numpieces)]])
+    message = key * self.numpyrows
+    return message
+
+class Decoder:
+
+  def __init__(self, gf):
+    self.gf = gf
+
+  def decode(self, messages, numpieces):
+    # solve
+    rows = eliminate(messages, self.gf)
+    # need to decode
+    # test for identity (will code later)
+    # assume that it is solved and in correct order
+    answers = [x.tolist()[0][numpieces:] for x in rows]
+    #print answers
+    output = ''.join([''.join([chr(b.num) for b in a]) for a in answers])
+    return output
+    #print output
 
 def testencode():
   # 80 character string
   plaintext = "big string with lots of characters. i am telling a story about stuff and thingsa"
-  gf = GF256()
-  garyencode(plaintext, 10, gf)
+  # 1170 characters of lorem ipsum
+  loremipsum = open('loremipsum.txt').read()
+  gf = GF256(open('gf256.json').read())
+  e = Encoder(gf)
+  numpieces = 10
+  e.prime(loremipsum, numpieces)
+  #e.prime(plaintext, numpieces)
+  rows = [e.generatepacket() for i in range(numpieces)]
+  #print rows
+  d = Decoder(gf)
+  print d.decode(rows, numpieces)
+
 
 def testeliminate():
-  gf = GF256()
+  gf = GF256(open('gf256.json').read())
   message = numpy.matrix(make2dgf([[1, 0, 0, 0, 'G', 'a', 'r', 'y'], [0, 1, 0, 0, ' ', 'c', 'o', 'd'], [0, 0, 1, 0, 'i', 'n', 'g', ' '], [0, 0, 0, 1, 'F', 'T', 'W', '!']], gf))
   key1 = numpy.matrix([[GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf)]])
   key2 = numpy.matrix([[GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf)]])
