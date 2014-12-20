@@ -102,8 +102,8 @@ def eliminate(rows, gf):
   # start at the top
   for i in range(len(rows)):
     # print everything so we know what's happening
-    print "About to work with row %d" % i
-    print rows
+    #print "About to work with row %d" % i
+    #print rows
     # find the rows that have leading zeros
     candidaterows = set([x for x, y in enumerate(rows)])
     for index, row in enumerate(rows):
@@ -118,12 +118,12 @@ def eliminate(rows, gf):
       raise Exception("Couldn't decode coefficient %d" % i)
     # start with the highest column and baleet from all the others
     rownum = goodrows[0]
-    print "using row %d" % rownum
+    #print "using row %d" % rownum
     row = rownum
     # divide first item so it's 1 (multiply by inverse)
     value = rows[rownum].item(i)
     inverse = gf.inverses[value.num]
-    print "inverse is %d" % inverse
+    #print "inverse is %d" % inverse
     rows[rownum] = rows[rownum] * inverse
     # subtract this row from all other rows
     for delnum in range(len(rows)):
@@ -134,7 +134,7 @@ def eliminate(rows, gf):
         eliminator = rows[rownum] * delvalue
         rows[delnum] = rows[delnum] - eliminator
 
-  print rows
+  return rows
 
 def garyencode(message, numpieces, gf):
   # divide message into pieces
@@ -146,7 +146,30 @@ def garyencode(message, numpieces, gf):
     message = message + ''.join(['?' for x in range(piecelength-(length % numpieces))])
     piecelength = piecelength + 1
   pieces = [message[i*piecelength:i*piecelength+piecelength] for i in range(numpieces)]
-  print pieces
+  # turn into matrix rows
+  rows = []
+  for i in range(numpieces):
+    row = [1 if x == i else 0 for x in range(10)] + [ord(x) for x in pieces[i]]
+    rows.append(row)
+  numpyrows = numpy.matrix(make2dgf(rows, gf))
+  print numpyrows
+  # generate keys
+  keys = []
+  for x in range(numpieces):
+    key = numpy.matrix([[GFnum(randint(2,254), gf) for x in range(numpieces)]])
+    keys.append(key)
+  print keys
+  messages = [k * numpyrows for k in keys]
+  print messages
+  # solve
+  rows = eliminate(messages, gf)
+  # need to decode
+  # test for identity (will code later)
+  # assume that it is solved and in correct order
+  answers = [x.tolist()[0][numpieces:] for x in rows]
+  print answers
+  output = ''.join([''.join([chr(b.num) for b in a]) for a in answers])
+  print output
 
 def testencode():
   # 80 character string
@@ -165,7 +188,8 @@ def testeliminate():
   m2 = key2 * message
   m3 = key3 * message
   m4 = key4 * message
-  eliminate([m1, m2, m3, m4], gf)
+  rows = eliminate([m1, m2, m3, m4], gf)
+  print rows
 
 def main():
   # just generate stuff and print
