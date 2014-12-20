@@ -6,6 +6,11 @@ import struct
 import gf256
 import numpy
 
+def testchr(val):
+  if isinstance(val, gf256.GFnum):
+    return chr(val.num)
+  return chr(val)
+
 def main():
   sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
   address = ('localhost', 8479)
@@ -24,8 +29,8 @@ def main():
   for i in range(numpieces):
     gen = e.generatepacket()
     print "Sending data"  # % gen
-    packet = ''.join([chr(x.num) for x in gen.tolist()[0]])
-    output = struct.pack("!HHH14s", len(packet), numpieces, len(packet)-numpieces, '') + packet
+    packet = ''.join([testchr(x) for x in gen])
+    output = struct.pack("!HHH14s", len(packet), numpieces, len(packet)-4, '') + packet
     # send
     sock.sendto(output, address)
 

@@ -3,8 +3,10 @@
 import math
 import pprint
 import numpy
-from random import randint
+import random
+import os
 import json
+import struct
 
 def makegaloisfield(fieldsize, generator):
 
@@ -178,9 +180,17 @@ class Encoder:
     self.numpyrows = numpy.matrix(make2dgf(rows, self.gf))
   
   def generatepacket(self):
-    key = numpy.matrix([[GFnum(randint(2,254), self.gf) for x in range(self.numpieces)]])
+    seedvals = os.urandom(4)
+    seed = struct.unpack("!L", seedvals)[0]
+    seedlist = [ord(x) for x in seedvals]
+    random.seed(seed)
+    key = numpy.matrix([[GFnum(random.randint(2,254), self.gf) for x in range(self.numpieces)]])
     message = key * self.numpyrows
-    return message
+    # take off the front and put on the seed
+    messageaslist = message.tolist()[0][self.numpieces:]
+    messagelist = seedlist + messageaslist
+    # also return normal list instead of numpy array (double-copies yay)
+    return messagelist
 
 class Decoder:
 
@@ -188,8 +198,17 @@ class Decoder:
     self.gf = gf
 
   def decode(self, messages, numpieces):
+    # regenerate coefficients from seed
+    rowstodecode = []
+    for row in messages:
+      seed = (row[0] << 24) + (row[1] << 16) + (row[2] << 8) + row[3]
+      random.seed(seed)
+      coefs = [GFnum(random.randint(2, 254), self.gf) for x in range(numpieces)]
+      rowtodecode = numpy.matrix(coefs + row[4:])
+      rowstodecode.append(rowtodecode)
+
     # solve
-    rows = eliminate(messages, self.gf)
+    rows = eliminate(rowstodecode, self.gf)
     # need to decode
     # test for identity (will code later)
     # assume that it is solved and in correct order
@@ -206,11 +225,11 @@ def testencode():
   loremipsum = open('loremipsum.txt').read()
   gf = GF256(open('gf256.json').read())
   e = Encoder(gf)
-  numpieces = 10
+  numpieces = 40
   e.prime(loremipsum, numpieces)
   #e.prime(plaintext, numpieces)
   rows = [e.generatepacket() for i in range(numpieces)]
-  #print rows
+  print rows
   d = Decoder(gf)
   print d.decode(rows, numpieces)
 
@@ -218,10 +237,10 @@ def testencode():
 def testeliminate():
   gf = GF256(open('gf256.json').read())
   message = numpy.matrix(make2dgf([[1, 0, 0, 0, 'G', 'a', 'r', 'y'], [0, 1, 0, 0, ' ', 'c', 'o', 'd'], [0, 0, 1, 0, 'i', 'n', 'g', ' '], [0, 0, 0, 1, 'F', 'T', 'W', '!']], gf))
-  key1 = numpy.matrix([[GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf)]])
-  key2 = numpy.matrix([[GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf)]])
-  key3 = numpy.matrix([[GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf)]])
-  key4 = numpy.matrix([[GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf), GFnum(randint(2,254), gf)]])
+  key1 = numpy.matrix([[GFnum(random.randint(2,254), gf), GFnum(random.randint(2,254), gf), GFnum(random.randint(2,254), gf), GFnum(random.randint(2,254), gf)]])
+  key2 = numpy.matrix([[GFnum(random.randint(2,254), gf), GFnum(random.randint(2,254), gf), GFnum(random.randint(2,254), gf), GFnum(random.randint(2,254), gf)]])
+  key3 = numpy.matrix([[GFnum(random.randint(2,254), gf), GFnum(random.randint(2,254), gf), GFnum(random.randint(2,254), gf), GFnum(random.randint(2,254), gf)]])
+  key4 = numpy.matrix([[GFnum(random.randint(2,254), gf), GFnum(random.randint(2,254), gf), GFnum(random.randint(2,254), gf), GFnum(random.randint(2,254), gf)]])
   m1 = key1 * message
   m2 = key2 * message
   m3 = key3 * message

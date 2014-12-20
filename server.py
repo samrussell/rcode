@@ -37,13 +37,13 @@ def parsemessage(data):
     return
   # make sure payload is equal to the length of the solver bits
   # plus the length of the data clues
-  if numpieces + numdata != length:
-    print "pieces + data != payload length!"
+  if 4 + numdata != length:
+    print "4 + data != payload length!"
     return
   # pull everything off the end in that case
   inrow = data[20:20+length]
-  # treat as byte array, convert to numpy matrix
-  data = numpy.matrix([[gf256.GFnum(ord(x), gf) for x in inrow]])
+  # treat as byte array
+  data = [ord(x) for x in inrow[:4]] + [gf256.GFnum(ord(x), gf) for x in inrow[4:]]
   #print data
   messages.append(data)
   if len(messages) >= numpieces:
