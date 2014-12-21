@@ -23,7 +23,7 @@ def main():
 
   gf = gf256.GF256(open('gf256.json').read())
   e = gf256.Encoder(gf)
-  numpieces = 40
+  numpieces = 130
   e.prime(message, numpieces)
 
   for i in range(numpieces):
