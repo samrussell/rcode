@@ -7,6 +7,7 @@ import random
 import os
 import json
 import struct
+import time
 
 def makegaloisfield(fieldsize, generator):
 
@@ -192,6 +193,66 @@ class Encoder:
     # also return normal list instead of numpy array (double-copies yay)
     return messagelist
 
+class Encoderv2:
+
+  def __init__(self, gf):
+    self.keys = None
+    self.numpyrows = None
+    self.numpieces = 0
+    self.gf = None
+    self.length = 0
+    self.piecelength = 0
+    self.gf = gf
+
+  def prime(self, message, numpieces):
+    self.numpieces = numpieces
+    # divide message into pieces
+    self.length = len(message)
+    piecelength = self.length / self.numpieces
+    self.piecelength = piecelength
+    # this length/piece detection is broken, watchout!
+    if self.length % self.numpieces > 0:
+      piecelength = piecelength + 1
+      extrachars = (piecelength * numpieces) - self.length
+      # pad for now with ?
+      message = message + ''.join(['?' for x in range(extrachars)])
+    pieces = [message[i*piecelength:i*piecelength+piecelength] for i in range(numpieces)]
+    # turn into matrix rows
+    rows = []
+    for i in range(numpieces):
+      row = [1 if x == i else 0 for x in range(numpieces)] + [ord(x) for x in pieces[i]]
+      #print len(row)
+      rows.append(row)
+    self.rows = rows
+    #self.numpyrows = numpy.matrix(make2dgf(rows, self.gf))
+  
+  def generatepacket(self):
+    seedvals = os.urandom(4)
+    seed = struct.unpack("!L", seedvals)[0]
+    seedlist = [ord(x) for x in seedvals]
+    random.seed(seed)
+    #key = numpy.matrix([[GFnum(random.randint(2,254), self.gf) for x in range(self.numpieces)]])
+    key = [random.randint(2,254) for x in range(self.numpieces)]
+    #message = key * self.numpyrows
+    # do the multiplication by hand
+    message = []
+    for i in range(len(self.rows[0])):
+      mtotal = 0
+      for j in range(self.numpieces):
+        num = self.rows[j][i]
+        keybit = key[j]
+        m = self.gf.table[num][keybit]
+        mtotal = mtotal ^ m
+      message.append(mtotal)
+    # cast as GFnum to make things a bit easier for now
+    messagegf = [GFnum(x, self.gf) for x in message]
+    # take off the front and put on the seed
+    messageaslist = messagegf[self.numpieces:]
+
+    messagelist = seedlist + messageaslist
+    # also return normal list instead of numpy array (double-copies yay)
+    return messagelist
+
 class Decoder:
 
   def __init__(self, gf):
@@ -224,14 +285,51 @@ def testencode():
   # 1170 characters of lorem ipsum
   loremipsum = open('loremipsum.txt').read()
   gf = GF256(open('gf256.json').read())
+  print "Encoding"
+  t0 = time.clock()
   e = Encoder(gf)
-  numpieces = 40
+  numpieces = 100
   e.prime(loremipsum, numpieces)
   #e.prime(plaintext, numpieces)
-  rows = [e.generatepacket() for i in range(numpieces)]
-  print rows
+  rows = []
+  for i in range(numpieces):
+    print "Generating piece %d" % (i+1)
+    rows.append(e.generatepacket())
+  t1 = time.clock()
+  print "Time for encode: %fs" % (t1-t0)
+  #print rows
+  print "Decoding"
   d = Decoder(gf)
-  print d.decode(rows, numpieces)
+  posttext = d.decode(rows, numpieces)
+  t2 = time.clock()
+  print posttext
+  print "Time for decode: %fs" % (t2-t1)
+
+def testencodev2():
+  # 80 character string
+  plaintext = "big string with lots of characters. i am telling a story about stuff and thingsa"
+  # 1170 characters of lorem ipsum
+  loremipsum = open('loremipsum.txt').read()
+  gf = GF256(open('gf256.json').read())
+  print "Encoding (v2)"
+  t0 = time.clock()
+  e = Encoderv2(gf)
+  numpieces = 100
+  e.prime(loremipsum, numpieces)
+  #e.prime(plaintext, numpieces)
+  rows = []
+  for i in range(numpieces):
+    print "Generating piece %d" % (i+1)
+    rows.append(e.generatepacket())
+  t1 = time.clock()
+  print "Time for encode: %fs" % (t1-t0)
+  #print rows
+  print "Decoding"
+  d = Decoder(gf)
+  posttext = d.decode(rows, numpieces)
+  t2 = time.clock()
+  print posttext
+  print "Time for decode: %fs" % (t2-t1)
 
 
 def testeliminate():
