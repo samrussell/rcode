@@ -16,9 +16,9 @@ def makegaloisfield(fieldsize, generator):
   #generator = 0b100011011 # x^8 + x^4 + x^3 + x + 1 = 100011011
   #fieldsize = 256
 
-  table = [[0 for y in range(fieldsize)] for x in range(fieldsize)]
+  table = [[0 for y in xrange(fieldsize)] for x in xrange(fieldsize)]
 
-  for a in range(fieldsize):
+  for a in xrange(fieldsize):
     # break up a into its parts
     x = 0
     tempa = a
@@ -32,7 +32,7 @@ def makegaloisfield(fieldsize, generator):
     #print "number %d" % a
     #print parts
     
-    for b in range(fieldsize):
+    for b in xrange(fieldsize):
       if a==0 or b==0:
         table[a][b] = 0
         continue
@@ -52,9 +52,9 @@ def makegaloisfield(fieldsize, generator):
       # product is what we want, put into matrix
       table[a][b] = product
 
-  inverses = [0 for x in range(fieldsize)]
+  inverses = [0 for x in xrange(fieldsize)]
 
-  for a in range(fieldsize):
+  for a in xrange(fieldsize):
     if a == 0:
       continue
     inverse = [x for x, y in enumerate(table[a]) if y == 1]
@@ -111,14 +111,14 @@ def make2dgf(a, gf):
 def eliminate(rows, gf):
   # rows is a list of vectors in numpy.matrix
   # start at the top
-  for i in range(len(rows)):
+  for i in xrange(len(rows)):
     # print everything so we know what's happening
     #print "About to work with row %d" % i
     #print rows
     # find the rows that have leading zeros
     candidaterows = set([x for x, y in enumerate(rows)])
     for index, row in enumerate(rows):
-      for x in range(i):
+      for x in xrange(i):
         if int(row.item(x).num) != 0:
           candidaterows.remove(index)
           break
@@ -137,7 +137,7 @@ def eliminate(rows, gf):
     #print "inverse is %d" % inverse
     rows[rownum] = rows[rownum] * inverse
     # subtract this row from all other rows
-    for delnum in range(len(rows)):
+    for delnum in xrange(len(rows)):
       if delnum != rownum:
         # find the value of the item at that column
         delvalue = rows[delnum].item(i)
@@ -147,6 +147,53 @@ def eliminate(rows, gf):
     #print "decoding, rows:"
     #print rows
 
+  return rows
+
+# this should live inside Decoder i guess
+def eliminatev2(rows, gf):
+  # rows is a list of vectors in numpy.matrix
+  # start at the top
+  for i in xrange(len(rows)):
+    # print everything so we know what's happening
+    #print "About to work with row %d" % i
+    #print rows
+    # find the rows that have leading zeros
+    print "Working with row %d" % (i+1)
+    candidaterows = set([x for x, y in enumerate(rows)])
+    for index, row in enumerate(rows):
+      for x in xrange(i):
+        if int(row[x].num) != 0:
+          candidaterows.remove(index)
+          break
+    # find a row where there's something in column i
+    goodrows = [x for x in candidaterows if rows[x][i].num != 0]
+    if goodrows == None:
+      # this means we fail encoding, should throw a fit i guess
+      raise Exception("Couldn't decode coefficient %d" % i)
+    # start with the highest column and baleet from all the others
+    rownum = goodrows[0]
+    #print "using row %d" % rownum
+    row = rownum
+    # divide first item so it's 1 (multiply by inverse)
+    value = rows[rownum][i]
+    inverse = gf.inverses[value.num]
+    #print "inverse is %d" % inverse
+    #rows[rownum] = rows[rownum] * inverse
+    # do this by hand
+    rows[rownum] = [x*inverse for x in rows[rownum]]
+    # subtract this row from all other rows
+    for delnum in xrange(len(rows)):
+      if delnum != rownum:
+        # find the value of the item at that column
+        delvalue = rows[delnum][i]
+        if delvalue.num == 0:
+          continue
+        # multiply to clear it out
+        #eliminator = rows[rownum] * delvalue
+        #rows[delnum] = rows[delnum] - eliminator
+        # do this by hand
+        #eliminator = [x * delvalue for x in rows[rownum]]
+        rows[delnum] = [rows[delnum][x] - (rows[rownum][x] * delvalue) for x in xrange(len(rows[delnum]))]
   return rows
 
 class Encoder:
@@ -170,12 +217,12 @@ class Encoder:
       piecelength = piecelength + 1
       extrachars = (piecelength * numpieces) - self.length
       # pad for now with ?
-      message = message + ''.join(['?' for x in range(extrachars)])
-    pieces = [message[i*piecelength:i*piecelength+piecelength] for i in range(numpieces)]
+      message = message + ''.join(['?' for x in xrange(extrachars)])
+    pieces = [message[i*piecelength:i*piecelength+piecelength] for i in xrange(numpieces)]
     # turn into matrix rows
     rows = []
-    for i in range(numpieces):
-      row = [1 if x == i else 0 for x in range(numpieces)] + [ord(x) for x in pieces[i]]
+    for i in xrange(numpieces):
+      row = [1 if x == i else 0 for x in xrange(numpieces)] + [ord(x) for x in pieces[i]]
       #print len(row)
       rows.append(row)
     self.numpyrows = numpy.matrix(make2dgf(rows, self.gf))
@@ -185,7 +232,7 @@ class Encoder:
     seed = struct.unpack("!L", seedvals)[0]
     seedlist = [ord(x) for x in seedvals]
     random.seed(seed)
-    key = numpy.matrix([[GFnum(random.randint(2,254), self.gf) for x in range(self.numpieces)]])
+    key = numpy.matrix([[GFnum(random.randint(2,254), self.gf) for x in xrange(self.numpieces)]])
     message = key * self.numpyrows
     # take off the front and put on the seed
     messageaslist = message.tolist()[0][self.numpieces:]
@@ -215,12 +262,12 @@ class Encoderv2:
       piecelength = piecelength + 1
       extrachars = (piecelength * numpieces) - self.length
       # pad for now with ?
-      message = message + ''.join(['?' for x in range(extrachars)])
-    pieces = [message[i*piecelength:i*piecelength+piecelength] for i in range(numpieces)]
+      message = message + ''.join(['?' for x in xrange(extrachars)])
+    pieces = [message[i*piecelength:i*piecelength+piecelength] for i in xrange(numpieces)]
     # turn into matrix rows
     rows = []
-    for i in range(numpieces):
-      row = [1 if x == i else 0 for x in range(numpieces)] + [ord(x) for x in pieces[i]]
+    for i in xrange(numpieces):
+      row = [1 if x == i else 0 for x in xrange(numpieces)] + [ord(x) for x in pieces[i]]
       #print len(row)
       rows.append(row)
     self.rows = rows
@@ -231,14 +278,14 @@ class Encoderv2:
     seed = struct.unpack("!L", seedvals)[0]
     seedlist = [ord(x) for x in seedvals]
     random.seed(seed)
-    #key = numpy.matrix([[GFnum(random.randint(2,254), self.gf) for x in range(self.numpieces)]])
-    key = [random.randint(2,254) for x in range(self.numpieces)]
+    #key = numpy.matrix([[GFnum(random.randint(2,254), self.gf) for x in xrange(self.numpieces)]])
+    key = [random.randint(2,254) for x in xrange(self.numpieces)]
     #message = key * self.numpyrows
     # do the multiplication by hand
     message = []
-    for i in range(len(self.rows[0])):
+    for i in xrange(len(self.rows[0])):
       mtotal = 0
-      for j in range(self.numpieces):
+      for j in xrange(self.numpieces):
         num = self.rows[j][i]
         keybit = key[j]
         m = self.gf.table[num][keybit]
@@ -264,7 +311,7 @@ class Decoder:
     for row in messages:
       seed = (row[0] << 24) + (row[1] << 16) + (row[2] << 8) + row[3]
       random.seed(seed)
-      coefs = [GFnum(random.randint(2, 254), self.gf) for x in range(numpieces)]
+      coefs = [GFnum(random.randint(2, 254), self.gf) for x in xrange(numpieces)]
       rowtodecode = numpy.matrix(coefs + row[4:])
       rowstodecode.append(rowtodecode)
 
@@ -274,6 +321,32 @@ class Decoder:
     # test for identity (will code later)
     # assume that it is solved and in correct order
     answers = [x.tolist()[0][numpieces:] for x in rows]
+    #print answers
+    output = ''.join([''.join([chr(b.num) for b in a]) for a in answers])
+    return output
+    #print output
+
+class Decoderv2:
+
+  def __init__(self, gf):
+    self.gf = gf
+
+  def decode(self, messages, numpieces):
+    # regenerate coefficients from seed
+    rowstodecode = []
+    for row in messages:
+      seed = (row[0] << 24) + (row[1] << 16) + (row[2] << 8) + row[3]
+      random.seed(seed)
+      coefs = [GFnum(random.randint(2, 254), self.gf) for x in xrange(numpieces)]
+      rowtodecode = coefs + row[4:]
+      rowstodecode.append(rowtodecode)
+
+    # solve
+    rows = eliminatev2(rowstodecode, self.gf)
+    # need to decode
+    # test for identity (will code later)
+    # assume that it is solved and in correct order
+    answers = [x[numpieces:] for x in rows]
     #print answers
     output = ''.join([''.join([chr(b.num) for b in a]) for a in answers])
     return output
@@ -292,7 +365,7 @@ def testencode():
   e.prime(loremipsum, numpieces)
   #e.prime(plaintext, numpieces)
   rows = []
-  for i in range(numpieces):
+  for i in xrange(numpieces):
     print "Generating piece %d" % (i+1)
     rows.append(e.generatepacket())
   t1 = time.clock()
@@ -318,14 +391,14 @@ def testencodev2():
   e.prime(loremipsum, numpieces)
   #e.prime(plaintext, numpieces)
   rows = []
-  for i in range(numpieces):
+  for i in xrange(numpieces):
     print "Generating piece %d" % (i+1)
     rows.append(e.generatepacket())
   t1 = time.clock()
   print "Time for encode: %fs" % (t1-t0)
   #print rows
   print "Decoding"
-  d = Decoder(gf)
+  d = Decoderv2(gf)
   posttext = d.decode(rows, numpieces)
   t2 = time.clock()
   print posttext
