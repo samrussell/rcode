@@ -194,6 +194,64 @@ def eliminatev2(rows, gf):
         # do this by hand
         #eliminator = [x * delvalue for x in rows[rownum]]
         rows[delnum] = [rows[delnum][x] - (rows[rownum][x] * delvalue) for x in xrange(len(rows[delnum]))]
+    # swap this row into place so we get identity
+    if rownum != i:
+      rows[i], rows[rownum] = rows[rownum], rows[i]
+  return rows
+
+# this should live inside Decoder i guess
+def eliminatev3(rows, gf):
+  # start at the top
+  # create identity matrix and do everything on both
+  identity = [[GFnum(1, gf) if y == x else GFnum(0, gf) for y in xrange(len(rows))] for x in xrange(len(rows))]
+  for i in xrange(len(rows)):
+    # print everything so we know what's happening
+    #print "About to work with row %d" % i
+    #print rows
+    # find the rows that have leading zeros
+    print "Working with row %d" % (i+1)
+    candidaterows = set([x for x, y in enumerate(rows)])
+    for index, row in enumerate(rows):
+      for x in xrange(i):
+        if int(row[x].num) != 0:
+          candidaterows.remove(index)
+          break
+    # find a row where there's something in column i
+    goodrows = [x for x in candidaterows if rows[x][i].num != 0]
+    if goodrows == None:
+      # this means we fail encoding, should throw a fit i guess
+      raise Exception("Couldn't decode coefficient %d" % i)
+    # start with the highest column and baleet from all the others
+    rownum = goodrows[0]
+    #print "using row %d" % rownum
+    row = rownum
+    # divide first item so it's 1 (multiply by inverse)
+    value = rows[rownum][i]
+    inverse = gf.inverses[value.num]
+    #print "inverse is %d" % inverse
+    #rows[rownum] = rows[rownum] * inverse
+    # do this by hand
+    rows[rownum] = [x*inverse for x in rows[rownum]]
+    identity[rownum] = [x*inverse for x in identity[rownum]]
+    # subtract this row from all other rows
+    for delnum in xrange(len(rows)):
+      if delnum != rownum:
+        # find the value of the item at that column
+        delvalue = rows[delnum][i]
+        if delvalue.num == 0:
+          continue
+        # multiply to clear it out
+        #eliminator = rows[rownum] * delvalue
+        #rows[delnum] = rows[delnum] - eliminator
+        # do this by hand
+        #eliminator = [x * delvalue for x in rows[rownum]]
+        rows[delnum] = [rows[delnum][x] - (rows[rownum][x] * delvalue) for x in xrange(len(rows[delnum]))]
+        identity[delnum] = [identity[delnum][x] - (identity[rownum][x] * delvalue) for x in xrange(len(identity[delnum]))]
+    # swap this row into place so we get identity
+    if rownum != i:
+      rows[i], rows[rownum] = rows[rownum], rows[i]
+      identity[i], identity[rownum] = identity[rownum], identity[i]
+  print identity
   return rows
 
 class Encoder:
@@ -279,7 +337,11 @@ class Encoderv2:
     seedlist = [ord(x) for x in seedvals]
     random.seed(seed)
     #key = numpy.matrix([[GFnum(random.randint(2,254), self.gf) for x in xrange(self.numpieces)]])
-    key = [random.randint(2,254) for x in xrange(self.numpieces)]
+    #key = [random.randint(2,254) for x in xrange(self.numpieces)]
+    nonzeroes = random.sample(xrange(self.numpieces), 10)
+    key = [0 for x in xrange(self.numpieces)]
+    for x in nonzeroes:
+      key[x] = random.randint(2,254)
     #message = key * self.numpyrows
     # do the multiplication by hand
     message = []
@@ -337,12 +399,16 @@ class Decoderv2:
     for row in messages:
       seed = (row[0] << 24) + (row[1] << 16) + (row[2] << 8) + row[3]
       random.seed(seed)
-      coefs = [GFnum(random.randint(2, 254), self.gf) for x in xrange(numpieces)]
-      rowtodecode = coefs + row[4:]
+      nonzeroes = random.sample(xrange(numpieces), 10)
+      key = [GFnum(0, self.gf) for x in xrange(numpieces)]
+      for x in nonzeroes:
+        key[x] = GFnum(random.randint(2,254), self.gf)
+      #coefs = [GFnum(random.randint(2, 254), self.gf) for x in xrange(numpieces)]
+      rowtodecode = key + row[4:]
       rowstodecode.append(rowtodecode)
 
     # solve
-    rows = eliminatev2(rowstodecode, self.gf)
+    rows = eliminatev3(rowstodecode, self.gf)
     # need to decode
     # test for identity (will code later)
     # assume that it is solved and in correct order
