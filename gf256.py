@@ -218,7 +218,7 @@ def eliminatev3(rows, gf):
           break
     # find a row where there's something in column i
     goodrows = [x for x in candidaterows if rows[x][i].num != 0]
-    if goodrows == None:
+    if len(goodrows) < 1:
       # this means we fail encoding, should throw a fit i guess
       raise Exception("Couldn't decode coefficient %d" % i)
     # start with the highest column and baleet from all the others
@@ -251,7 +251,7 @@ def eliminatev3(rows, gf):
     if rownum != i:
       rows[i], rows[rownum] = rows[rownum], rows[i]
       identity[i], identity[rownum] = identity[rownum], identity[i]
-  print identity
+  #print identity
   return rows
 
 class Encoder:
@@ -338,7 +338,8 @@ class Encoderv2:
     random.seed(seed)
     #key = numpy.matrix([[GFnum(random.randint(2,254), self.gf) for x in xrange(self.numpieces)]])
     #key = [random.randint(2,254) for x in xrange(self.numpieces)]
-    nonzeroes = random.sample(xrange(self.numpieces), 10)
+    start = random.randint(0, self.numpieces)
+    nonzeroes = [x % self.numpieces for x in xrange(start, start+10)]
     key = [0 for x in xrange(self.numpieces)]
     for x in nonzeroes:
       key[x] = random.randint(2,254)
@@ -399,7 +400,9 @@ class Decoderv2:
     for row in messages:
       seed = (row[0] << 24) + (row[1] << 16) + (row[2] << 8) + row[3]
       random.seed(seed)
-      nonzeroes = random.sample(xrange(numpieces), 10)
+      #nonzeroes = random.sample(xrange(numpieces), 10)
+      start = random.randint(0, numpieces)
+      nonzeroes = [x % numpieces for x in xrange(start, start+10)]
       key = [GFnum(0, self.gf) for x in xrange(numpieces)]
       for x in nonzeroes:
         key[x] = GFnum(random.randint(2,254), self.gf)
